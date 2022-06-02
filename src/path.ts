@@ -1,6 +1,6 @@
 export default undefined;
 
-// https://www.youtube.com/watch?v=3Fxoxg_FMpg
+// Herleitung: "infer", um Typ-Argumente von Generics zu bekommen
 
 type Message<Payload extends object> = {
   body: Payload;
@@ -10,25 +10,38 @@ type MessagePayloadType<M extends Message<object>> = M extends Message<infer X>
   ? X
   : unknown;
 
-type Person = {
+type PersonMessage = Message<{
   lastname: string;
   age: number;
+}>;
+
+type PersonPayloadType = MessagePayloadType<PersonMessage>;
+
+const personPayload: PersonPayloadType = {
+  age: 32, // OK
+  lastname: "Smith", // OK
+  city: "Hamburg", // ERROR ✅
 };
 
 // ---------------------------------------------------------
 
-type Left<X extends string> = X extends `${infer L}:${string}` ? L : unknown;
-type Right<X extends string> = X extends `${string}:${infer R}` ? R : unknown;
+// Herleitung: "Pattern Matching" mit String Literal Types
+
+type Left<X extends string> = X extends `${infer L}:${string}` ? L : never;
+type Right<X extends string> = X extends `${string}:${infer R}` ? R : never;
 
 const Teams = "Hamburger SV:FC St. Pauli";
 
-type HSV = Left<typeof Teams>; // "Hamburger SV"
-type StPauli = Right<typeof Teams>; // "FC St. Pauli"
+type HomeTeam = Left<typeof Teams>; // "Hamburger SV"
+type AwayTeam = Right<typeof Teams>; // "FC St. Pauli"
+
+const hsv: HomeTeam = "Hamburger SV"; // OK ✅
+const scp: AwayTeam = "FC St. Pauli"; // OK ✅
+const s04: HomeTeam = "Schalke 04"; // ERROR ✅
 
 const Musician = "Syd Barret";
-type No = Left<typeof Musician>;
-
-// ---------------------------------------------------------
+type No = Left<typeof Musician>; // never  ✅
+const crazyDiamond: No = ""; // ERROR: never  ✅
 
 // ---------------------------------------------------------
 
@@ -43,15 +56,6 @@ type No = Left<typeof Musician>;
 //   Muss also nicht die beste Implementierung sein, aber zum
 //    zeigen gut geeignet
 
-type PersonMessage = Message<Person>;
-
-type PersonPayloadType = MessagePayloadType<PersonMessage>;
-
-const userIdPath = "/pages/blog/:user/:id";
-type UserIdPath = Path<typeof userIdPath>;
-
-// type Path = { user: string, id: string }
-
 type Path<
   S extends string,
   Result extends string[] = []
@@ -60,7 +64,9 @@ type Path<
   : [...Result, S];
 
 // ????
-type ArrayToUnion<ARR_T extends Readonly<unknown[]>> = ARR_T[number];
+type ArrayToUnion<AnArray extends unknown[]> = AnArray[number];
+
+type Abc = ArrayToUnion<["a", "b", "c"]>;
 
 type Filter<X extends string> = X extends `:${infer Y}` ? Y : never;
 
@@ -70,17 +76,43 @@ type ToObject<X extends string> = {
 
 type Params<R extends string> = ToObject<Filter<ArrayToUnion<Path<R>>>>;
 
-// type UserRoute = Route<Z>;
+type IsEmptyObject<O extends object> = keyof O extends []
+  ? (keyof O)[number] extends never
+    ? true
+    : false
+  : false;
+
+type A = IsEmptyObject<{}>; // true
+type B = IsEmptyObject<{ b: null }>; // false
+type C = IsEmptyObject<{ c: undefined }>; // false
+type D = IsEmptyObject<{ c: never }>; // false
+
+// DAS ZIEL:
+
+// - wir haben eine Funktion, mit der wir eine Route (String)
+//   übergeben können
+//   - In der Route könenn Parameter definiert sein (/:abc)
+//   - als Callback-Funktion wird eine Funktion übergbeen,
+//     die zur Laufzeit die geparsten Werte übergeben bekommt
+//   - da Werte aus URL kommen, ist der Typ jeweils string
+// - wenn keine Url, soll Callback-Funktion keinen Parameter haben
 
 function registerRoute<R extends string>(
   route: R,
-  onRequest: (params: Params<R>) => void
-) {
-  // @ts-ignore
-  return {};
-}
+  onRequest: IsEmptyObject<Params<R>> extends true
+    ? () => void
+    : (params: Params<R>) => void
+) {}
 
 registerRoute("/pages/blog/:user/:postId", (params) => {
-  params.postId;
-  params.sss; // ERROR
+  params.postId.toUpperCase(); // OK ✅
+  params.user.toUpperCase(); // OK ✅
+  params.sss; // ERROR ✅
+});
+
+// keine Parameter
+registerRoute("/pages/blog", () => {});
+
+registerRoute(":songId", (p) => {
+  p.songId.toUpperCase(); // OK ✅
 });
