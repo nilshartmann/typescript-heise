@@ -1,5 +1,21 @@
 export default undefined;
 
+// DAS ZIEL:
+
+// - wir haben eine Funktion ("registerRoute"), der wir als 1. Parameter eine Route (String)
+//   übergeben können
+//   - In der Route könenn Parameter definiert sein (/:abc)
+// - als zweiter Parameter, eine Callback-Funktion mit null oder einem Parameter,
+//     der Parameter sind die zur Laufzeit geparsten Werte als Objekt
+//   - da Werte aus URL kommen, ist der Typ jeweils string
+//   - wenn keine Params in der URL, soll Callback-Funktion keinen Parameter haben
+//
+// registerRoute("/user/:userId",
+//               params => params.userId.toUpperCase() // params: { userId: string }
+// );
+// registerRoute("about", () => console.log("hallo") );
+
+// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 // Herleitung: "infer", um Typ-Argumente von Generics zu bekommen
 
 type Message<Payload extends object> = {
@@ -67,14 +83,19 @@ type Path<
 type ArrayToUnion<AnArray extends unknown[]> = AnArray[number];
 
 type Abc = ArrayToUnion<["a", "b", "c"]>;
+const aa: Abc = "a"; // OK
+const bb: Abc = "b"; // OK
+const xx: Abc = "x"; // ERROR ✅
 
 type Filter<X extends string> = X extends `:${infer Y}` ? Y : never;
 
-type ToObject<X extends string> = {
+type ToObjectWithStrings<X extends string> = {
   [Key in X]: string;
 };
 
-type Params<R extends string> = ToObject<Filter<ArrayToUnion<Path<R>>>>;
+type Params<R extends string> = ToObjectWithStrings<
+  Filter<ArrayToUnion<Path<R>>>
+>;
 
 type IsEmptyObject<O extends object> = keyof O extends []
   ? (keyof O)[number] extends never
@@ -87,15 +108,7 @@ type B = IsEmptyObject<{ b: null }>; // false
 type C = IsEmptyObject<{ c: undefined }>; // false
 type D = IsEmptyObject<{ c: never }>; // false
 
-// DAS ZIEL:
-
-// - wir haben eine Funktion, mit der wir eine Route (String)
-//   übergeben können
-//   - In der Route könenn Parameter definiert sein (/:abc)
-//   - als Callback-Funktion wird eine Funktion übergbeen,
-//     die zur Laufzeit die geparsten Werte übergeben bekommt
-//   - da Werte aus URL kommen, ist der Typ jeweils string
-// - wenn keine Url, soll Callback-Funktion keinen Parameter haben
+// ERGEBNIS: ------------------- - - >
 
 function registerRoute<R extends string>(
   route: R,
