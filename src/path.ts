@@ -13,11 +13,12 @@ export default undefined;
 // registerRoute("/user/:userId",
 //               params => params.userId.toUpperCase() // params: { userId: string }
 // );
-// registerRoute("about", () => console.log("hallo") );
+// registerRoute("/about", () => console.log("hallo") ); // keine Parameter
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 // Herleitung: "infer", um Typ-Argumente von Generics zu bekommen
 
+// an Redux orientieren ⬇️ ⬇️ ⬇️ ⬇️ ⬇️ ⬇️
 type Message<Payload extends object> = {
   body: Payload;
 };
@@ -40,16 +41,35 @@ const personPayload: PersonPayloadType = {
 };
 
 // ---------------------------------------------------------
+// type Rene<X> = X extends boolean ? string : number;
+
+// type Farbe = "rot" | "gruen"
+// type HintergrundOderVordergrund = "hg" | "vg"
+
+// type AlleFarben = `on${Capitalize<Farbe>} ${HintergrundOderVordergrund}`
+
+// function addListener<O extends object>(o: O) {
+
+// }
 
 // Herleitung: "Pattern Matching" mit String Literal Types
 
 type Left<X extends string> = X extends `${infer L}:${string}` ? L : never;
-type Right<X extends string> = X extends `${string}:${infer R}` ? R : never;
+type Right<X extends string> = X extends `${string}:${infer R}`
+  ? R | null
+  : never;
 
-const Teams = "Hamburger SV:FC St. Pauli";
+// const teams = "Hamburger SV:FC St. Pauli" ;
 
-type HomeTeam = Left<typeof Teams>; // "Hamburger SV"
-type AwayTeam = Right<typeof Teams>; // "FC St. Pauli"
+// function match(x: "Hamburger SV:FC St. Pauli") {
+
+// }
+
+// match("Hamburger SV:FC St. Pauli");
+// match(teams);
+
+type HomeTeam = Left<typeof teams>; // "Hamburger SV"
+type AwayTeam = Right<typeof teams>; // "FC St. Pauli"
 
 const hsv: HomeTeam = "Hamburger SV"; // OK ✅
 const scp: AwayTeam = "FC St. Pauli"; // OK ✅
@@ -79,8 +99,12 @@ type Path<
   ? Path<Y, [...Result, Z]>
   : [...Result, S];
 
+type P = Path<"/abc/def/:userId">;
+type U = ArrayToUnion<P>;
+
 // ????
-type ArrayToUnion<AnArray extends unknown[]> = AnArray[number];
+// type ArrayToUnion<AnArray extends unknown[]> = AnArray[number]; // any
+type ArrayToUnion<AnArray extends any[]> = AnArray[any]; // any
 
 type Abc = ArrayToUnion<["a", "b", "c"]>;
 const aa: Abc = "a"; // OK
@@ -89,9 +113,13 @@ const xx: Abc = "x"; // ERROR ✅
 
 type Filter<X extends string> = X extends `:${infer Y}` ? Y : never;
 
-type ToObjectWithStrings<X extends string> = {
-  [Key in X]: string;
+type ToObjectWithStrings<X extends object> = {
+  [M in keyof X]: `M`;
 };
+
+type F = "a" | "c";
+type Person = { lastname: string };
+type OO = ToObjectWithStrings<Person>;
 
 type Params<R extends string> = ToObjectWithStrings<
   Filter<ArrayToUnion<Path<R>>>

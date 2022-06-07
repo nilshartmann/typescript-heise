@@ -1,0 +1,2 @@
+// Liefert Type des 'payload'-Properties des Objektes, das als
+// ersten Parameter an die HandlerFunktion (HF) übergeben wird
