@@ -5,9 +5,17 @@ type Endpoint = {
   method: "GET" | "POST";
 };
 
+type K = keyof Endpoint;
+const x: K = "method";
+type Z = `${Capitalize<K>}`;
+const yyyyy: Z = "method";
+
+type Keys = keyof endpoints;
+const aaa: Keys = "fasdfasdf";
+
 type EndpointConfig = Record<string, Endpoint>;
 
-const endpoints: EndpointConfig = {
+const endpoints = {
   getPost: {
     url: "https://myapp.de/api/posts",
     method: "GET",
@@ -17,11 +25,12 @@ const endpoints: EndpointConfig = {
     url: "https://myapp.de/api/users",
     method: "POST",
   },
-};
+} as const;
 
 type EndpointName = "getPost";
 type FunctionName = `use${Capitalize<EndpointName>}`;
-
+type QueryFn<T> = T extends string ? `use${Capitalize<T>}Query` : never;
+type QueryFunctions = QueryFn<keyof typeof endpoints>;
 const useGetPost: FunctionName = "useGetPost"; // OK
 const getPost: FunctionName = "getPost"; // ERROR
 
@@ -31,23 +40,24 @@ function capitalize(s: string) {
 }
 
 /** Ausgelassen, implementierung für Beispiel irrelevant */
-declare function createHook(endpoint: Endpoint): Function;
+declare function createApiHook(endpoint: Endpoint): Function;
 
-type Hooks<E extends EndpointConfig> = {
-  [K in keyof E as K extends string ? `use${Capitalize<K>}` : never]: Function;
+type Api<E extends EndpointConfig> = {
+  [K in keyof E as QueryFn<K>]: Function;
 };
 
-function createHooks<E extends EndpointConfig>(endpoints: E): Hooks<E> {
+function createApi<E extends EndpointConfig>(endpoints: E): Api<E> {
   const result: Record<string, Function> = {};
   Object.keys(endpoints).forEach((name) => {
     // name ist z.B. getPost, updateUser, ...
     const endpointFn = endpoints[name];
     const hookFunctionName = `use${capitalize(name)}`;
-    result[hookFunctionName] = createHook(endpointFn);
+    result[hookFunctionName] = createApiHook(endpointFn);
   });
 
   return result as any;
 }
 
-const hooks = createHooks(endpoints);
-hooks.useGetPost();
+const hooks = createApi(endpoints);
+hooks.useGetPostQuery();
+hooks.useRemoveUserQuery();
