@@ -4,17 +4,26 @@ type Endpoint = {
   url: string;
   method: "GET" | "POST";
 };
-const endpoints = {
+
+type EndpointConfig = Record<string, Endpoint>;
+
+const endpoints: EndpointConfig = {
   getPost: {
-    url: "...",
+    url: "https://myapp.de/api/posts",
     method: "GET",
   },
 
   updateUser: {
-    url: "...",
+    url: "https://myapp.de/api/users",
     method: "POST",
   },
-} as const;
+};
+
+type EndpointName = "getPost";
+type FunctionName = `use${Capitalize<EndpointName>}`;
+
+const useGetPost: FunctionName = "useGetPost"; // OK
+const getPost: FunctionName = "getPost"; // ERROR
 
 // getPosts => GetPosts
 function capitalize(s: string) {
@@ -24,13 +33,11 @@ function capitalize(s: string) {
 /** Ausgelassen, implementierung für Beispiel irrelevant */
 declare function createHook(endpoint: Endpoint): Function;
 
-type Hooks<E extends Record<string, Endpoint>> = {
-  [K in keyof E as K extends string ? `use${Capitalize<K>}` : K]: Function;
+type Hooks<E extends EndpointConfig> = {
+  [K in keyof E as K extends string ? `use${Capitalize<K>}` : never]: Function;
 };
 
-function createHooks<E extends Record<string, Endpoint>>(
-  endpoints: E
-): Hooks<E> {
+function createHooks<E extends EndpointConfig>(endpoints: E): Hooks<E> {
   const result: Record<string, Function> = {};
   Object.keys(endpoints).forEach((name) => {
     // name ist z.B. getPost, updateUser, ...

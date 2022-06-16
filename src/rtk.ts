@@ -1,10 +1,5 @@
 export default undefined;
 
-type PayloadAction<PL> = {
-  type: string;
-  payload: PL;
-};
-
 // Ausgangspunkt:
 
 // In der Anwendung gibt es diverse handler-Funktionen, die beliebige Actions verarbeiten können.
@@ -17,6 +12,12 @@ type PayloadAction<PL> = {
 //  und liefert eine Action zurück (mit type und payload)
 //  Damit diese Funktionen nicht explizit geschrieben werden müssen, gibt es eine Hilfsfunktion
 //   (in Redux createSlice)
+
+type Action<AN = string> = { actionName: AN };
+
+type PayloadAction<PL, AN = string> = Action<AN> & {
+  payload: PL;
+};
 
 // Payload einer fachlichen Action
 type IncrementActionPayload = {
@@ -33,29 +34,53 @@ const reducers = {
   },
 };
 
-type GetActionParamFromHandlerFunction<HF> = HF extends (
-  action: infer Action
-) => any
-  ? Action
-  : never;
+function createIncrementAction(payload: IncrementActionPayload) {
+  return {
+    actionName: "increment",
+    payload,
+  } as const;
+}
 
-type GetPayloadFromAction<A> = A extends { payload: infer PayloadType }
+function createResetAction() {
+  return { actionName: "reset" } as const;
+}
+
+type GetActionFromReducerFunction<RF> = RF extends (arg: infer AT) => any
+  ? AT
+  : unknown;
+
+// type IncrementAction = GetActionFromReducerFunction<typeof reducers.increment>;
+// type ResetAction = GetActionFromReducerFunction<typeof reducers.reset>;
+
+type GetPayloadFromAction<AT> = AT extends { payload: infer PayloadType }
   ? PayloadType
   : never;
 
-type GetPayloadFromHandlerFunction<HF> = GetPayloadFromAction<
-  GetActionParamFromHandlerFunction<HF>
+type IncrementAction = GetPayloadFromAction<
+  GetActionFromReducerFunction<typeof reducers.increment>
+>; // IncrementActionPayload
+type ResetAction = GetPayloadFromAction<
+  GetActionFromReducerFunction<typeof reducers.reset>
+>; // never
+
+type GetPayloadFromHandlerFunction<RF> = GetPayloadFromAction<
+  GetActionFromReducerFunction<RF>
 >;
 
 // Ergebnis-Objekt aus der makeActionCreator-Funktion, wenn das Action
 //  Objekt ein payload-Property erwartet
-type ActionCreatorWithPayload<T extends string, PL> = (pl: PL) => {
-  type: T;
-  payload: PL;
-};
+// TODO: PayloadACtion<AN, PL> ?
+type ActionCreatorWithPayload<AN extends string, PL> = (
+  payload: PL
+) => PayloadAction<PL, AN>;
+// type ActionCreatorWithPayload<AN extends string, PL> = (payload: PL) => {
+//   actionName: AN,
+//   payload: PL
+// };
 
 // Action-Creator ohne Payload
-type ActionCreatorWithoutPayload<T extends string> = () => { type: T };
+// TODO: Action<AN>?
+type ActionCreatorWithoutPayload<AN extends string> = () => Action<AN>;
 
 // Ergebnis von makeActionCreator
 // type ActionCreatorFunction<
@@ -67,19 +92,22 @@ type ActionCreatorWithoutPayload<T extends string> = () => { type: T };
 
 // https://github.com/microsoft/TypeScript/issues/31751#issuecomment-498526919 🤯
 // In RTK (createAction.d.ts):  ([E] extends [never] ? "..." : "..."
-type IsNeverType<T> = [T] extends [never] ? true : false;
+// type IsNeverType<PL> = [PL] extends [never] ? true : false;
 
-type ActionCreatorFunction2<T extends string, PL> = IsNeverType<PL> extends true
-  ? ActionCreatorWithoutPayload<T>
-  : ActionCreatorWithPayload<T, PL>;
+type ActionCreatorFunction<AN extends string, PL> = [PL] extends [never]
+  ? ActionCreatorWithoutPayload<AN>
+  : ActionCreatorWithPayload<AN, PL>;
 
-function makeActionCreator<T extends string, HF extends Function>(
-  type: T,
-  _fn: HF
-): ActionCreatorFunction2<T, GetPayloadFromHandlerFunction<HF>> {
+function makeActionCreator<AN extends string, RF extends Function>(
+  actionName: AN,
+  _fn: RF
+): ActionCreatorFunction<
+  AN,
+  GetPayloadFromAction<GetActionFromReducerFunction<RF>>
+> {
   const actionCreator = (...args: any[]) => {
     return {
-      type,
+      actionName,
       payload: args[0],
     };
   };
@@ -98,15 +126,15 @@ const incrementActionCreator = makeActionCreator(
 const incrementAction = incrementActionCreator({
   value: 7,
 });
-incrementAction.type === "increment"; // OK
-incrementAction.type === "decrement"; // ERROR
+incrementAction.actionName === "increment"; // OK
+incrementAction.actionName === "decrement"; // ERROR
 incrementAction.payload.value = 99; // OK
 incrementAction.payload.value = ""; // ERROR Keine Zahl
 
 const resetActionCreator = makeActionCreator("reset", reducers.reset);
 const resetAction = resetActionCreator();
-resetAction.type === "reset"; // OK
-resetAction.type === "clear"; // ERROR
+resetAction.actionName === "reset"; // OK
+resetAction.actionName === "clear"; // ERROR
 resetAction.payload; // ERROR kein Payload
 
 // ------------------------------------------------------------
@@ -116,21 +144,21 @@ resetAction.payload; // ERROR kein Payload
 //  der Verwender übergibt sein Slice mit den Reducern (hier nur Reducer bzw. handler)
 //  und kommt dann liste mit Action-Creator-Funktionen zurück
 
-type Actions<H extends Record<string, Function>> = {
-  [actionName in keyof H]: ActionCreatorFunction2<
+type Actions<RS extends Record<string, Function>> = {
+  [actionName in keyof RS]: ActionCreatorFunction<
     actionName extends string ? actionName : "",
-    GetPayloadFromHandlerFunction<H[actionName]>
+    GetPayloadFromHandlerFunction<RS[actionName]>
   >;
 };
 
-function createActions<HS extends Record<string, Function>>(
-  handlers: HS
-): Actions<HS> {
+function createActions<RS extends Record<string, Function>>(
+  reducers: RS
+): Actions<RS> {
   const result: Record<string, Function> = {};
-  Object.keys(handlers).forEach((actionName) => {
-    const handlerFunction = handlers[actionName];
+  Object.keys(reducers).forEach((actionName) => {
+    const reducerFunction = reducers[actionName];
 
-    result[actionName] = makeActionCreator(actionName, handlerFunction);
+    result[actionName] = makeActionCreator(actionName, reducerFunction);
   });
 
   return result as any;
@@ -142,16 +170,31 @@ const x = createActions(reducers);
 const incrementAction2 = x.increment({
   value: 7,
 });
-incrementAction2.type === "increment"; // OK
-incrementAction2.type === "decrement"; // ERROR
+incrementAction2.actionName === "increment"; // OK
+incrementAction2.actionName === "decrement"; // ERROR
 incrementAction2.payload.value = 99; // OK
 incrementAction2.payload.value = ""; // ERROR Keine Zahl
 x.increment({ minus: 1 }); // ERROR invalid payload
 x.increment(); // ERROR  no payload at all
 
 const resetAction2 = x.reset();
-resetAction2.type === "reset"; // OK
-resetAction2.type === "clear"; // ERROR
+resetAction2.actionName === "reset"; // OK
+resetAction2.actionName === "clear"; // ERROR
 resetAction2.payload; // ERROR kein Payload
 
 const noWay = x.noway(); // keine Action
+
+// function reset(): Action<"reset"> {
+//   return {
+//     actionName: "reset",
+//   };
+// }
+
+// function increment(
+//   payload: IncrementActionPayload
+// ): PayloadAction<IncrementActionPayload, "increment"> {
+//   return {
+//     actionName: type,
+//     payload,
+//   };
+// }
